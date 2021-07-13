@@ -1,0 +1,312 @@
+---
+title: "Case Study of Craft Beers and Breweries"
+author: "Pearly Merin Paul and Kevin Albright"
+date: "6/20/2021"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction 
+
+In the below report, we have been provided two datasets for various `beers` and the `breweries` that produce them in the US. 
+Our team had to do an exploratory Data Analysis on the data provided to come up with useful insights.
+
+We were provided with two separate datasets, one with details of the beers and and the other with the details of the breweries around the USA. To analyze this 
+
+
+## Reproducible Research in R
+
+Please begin by reading the the README.md.All the details on the structure of project has been documented.
+
+### Loading Packages for Analysis
+Below are the packages required for the analysis of the Craft Beer and Brewery study.
+
+```{r R Packages for Loading}
+library(dplyr)
+library(usdata)
+library(maps)
+library(ggplot2)
+library(dplyr)
+library(usmap)
+library(magrittr)
+library(kableExtra)
+library(xtable)
+library(RSQLite)
+library(proto)
+library(gsubfn)
+library(sqldf)
+library(class)
+library(caret)
+```
+
+### Loading the Datasets for Analysis 
+
+We were provided with 2 datasets (`beers` and `breweries`). The `breweries` dataset contains the count of breweries from 50 states of the US and the `beer` data set contains the details of the beers (Alcohol by Volume Content and International Bitterness unit)
+
+`Note : Beers dataset contains a list of 2410 US craft beers and Breweries dataset contains 558 US breweries.`
+
+***Region Data : This is the data set we created for analysis group the 50 states in US into 4 regions North Central,North East , South and West***
+
+```{r}
+
+
+##Cleaning the data 
+Breweries=read.csv("data/Breweries.csv")
+
+Beers=read.csv("data/Beers.csv")
+
+#Bring in Region Data
+RegionData = data.frame(State = state.abb, Region = state.region)
+Breweries = left_join(Breweries,RegionData,by = "State")
+
+```
+
+
+## 3. Research Questions
+
+We are now going to analyze the research questions for EDA 
+
+
+### 1. How many breweries are present in each state?
+
+Here we used the breweries dataset to count the number of breweries per state in the US.
+
+**Output : We were able to find Colorado and California to have the highest number of Craft breweries in US.**
+
+```{r}
+ kable(count(Breweries,State))
+
+
+```
+
+### 1a. Visualization of count of Breweries grouped by Region/State
+
+Below is the visual analysis of the count of breweries per state. For further clarity we grouped states of the US into 4 regions North Central, North East, South and West.
+
+**Observation : The South and West Region have the highest number of breweries**
+
+```{r}
+#Brewery Count by State
+#Breweries %>% 
+ # group_by(State,Region) %>%
+  #summarize(Count = n()) %>%
+  #ggplot(aes(x = reorder(State,-Count), y = Count,fill=Region)) + 
+  #geom_bar(stat = "identity") + 
+  #geom_text(aes(label=Count),vjust=2) + 
+  #ggtitle("Brewery Count by State",) + xlab("State") + ylab("Count") + 
+  #facet_wrap(~Region, scales="free") + 
+  #theme(plot.title=element_text(hjust=0.5)) 
+
+```
+
+## 2. Merge beer data with the breweries data. Print the first 6 observations and the last six observations to check the merged file.
+
+Here we merged the both the datasets into a single dataset `Distilled_Data`. By which we can find the beers made in by each state in United States.
+
+The  Brewery_id column  name in the Beers data was changed to Brew_id for merging both datasets
+
+
+```{r}
+#Bring in Region Data
+RegionData = data.frame(State = state.abb, Region = state.region)
+Breweries = left_join(Breweries,RegionData,by = "State")
+
+#Handle NA and missing data by replacing with Regional Means
+Breweries = sqldf('
+      select
+      "Brew_ID","Name","City","State",
+      
+      case when "State"  = "DC" then "South" else "Region" end as Region
+      
+      from
+      Breweries
+                 ')
+
+Distilled_Data = merge(Beers,Breweries, by.x = "Brewery_id", by.y = "Brew_ID")
+#Distilled_Data = left_join(Beers,Distilled_Data,by = "Beer_ID")
+
+kable(head(Distilled_Data))
+
+kable(tail(Distilled_Data))
+```
+
+
+## 3.Address the missing values in each column.
+
+To proceed with data analysis we first inspected both the datasets for any missing value.
+
+**1.Beer Dataset :** 
+
+  + International Bitterness Unit : Out of the 2410 beers - 1405 beers were missing IBU value
+  + Alcohol By Volume : Out of the 2410 beers - 62 beers were missing ABV content value 
+  
+**2.Breweries Dataset :** 
+  + No missing data 
+  
+To deal with this anomaly and unbiased data analysis we populated the missing values in the Beer Data. We populated the missing  values with the mean of respective region/State.
+
+```{r}
+
+
+
+#Create table for IBU and ABV means by State and Region - excluding missing data 
+State_Means = 
+Distilled_Data[!is.na(Distilled_Data$ABV) & !is.na(Distilled_Data$IBU),] %>% 
+  group_by(State) %>%
+  summarize(Mean_IBU_by_State = mean(IBU),
+            Mean_ABV_by_State = mean(ABV))
+Regional_Means = 
+  Distilled_Data[!is.na(Distilled_Data$ABV) & !is.na(Distilled_Data$IBU),] %>% 
+  group_by(Region) %>%
+  summarize(Mean_IBU_by_Region = mean(IBU),
+            Mean_ABV_by_Region = mean(ABV))
+
+Distilled_Data = left_join(Distilled_Data,State_Means,by = "State")
+Distilled_Data = left_join(Distilled_Data,Regional_Means,by = "Region")
+
+Distilled_Data2 = Distilled_Data
+
+Distilled_Data2 = 
+Distilled_Data2 %>%
+  mutate(ABV = coalesce(Distilled_Data2$ABV,Distilled_Data2$Mean_ABV_by_State),
+         IBU = coalesce(coalesce(Distilled_Data2$IBU,Distilled_Data2$Mean_IBU_by_State),Distilled_Data2$Mean_IBU_by_Region))
+
+
+```
+
+
+## 4.Compute the median alcohol content and international bitterness unit for each state. Plot a bar chart to compare.
+
+***Calculation of the median Alcohol content of each state grouped by region***
+
+
+### +4a. Median Alcohol Content 
+
+```{r}
+
+Distilled_Data2 %>%
+  group_by(State,Region) %>%
+  summarize(
+    Median_Alcohol_Content = round(median(ABV,na.rm=TRUE),digits=5), 
+    Median_Bitterness = median(IBU,na.rm=TRUE)
+  ) %>%
+  ggplot(aes(reorder(x = State,Median_Alcohol_Content), y = Median_Alcohol_Content,fill=Region)) + geom_bar(stat="identity") + 
+  xlab("State") + ylab("ABV") + ggtitle("Median ABV by State") + facet_wrap(~Region, scales="free") + 
+  geom_text(aes(label=round(Median_Alcohol_Content,digits=6)),hjust=1) + 
+  coord_flip()
+
+```
+### 4b. Median Internation Bitterness Unit Content
+
+
+***Calculation of the median International Biiterness Unit  of each state grouped by region***
+```{r}
+#Median Bitterness
+Distilled_Data2 %>%
+  group_by(State,Region) %>%
+  summarize(
+    Median_Bitterness = median(IBU,na.rm=TRUE),
+    Median_Alcohol_Content = median(ABV,na.rm=TRUE) 
+  ) %>%
+  ggplot(aes(reorder(x = State,Median_Bitterness), y = Median_Bitterness,fill=Region)) + geom_bar(stat="identity") + 
+  xlab("State") + ylab("Bitterness") + ggtitle("Median Bitterness by State") + coord_flip() +
+  geom_text(aes(label=round(Median_Bitterness,digits=2)),hjust=1) + 
+  facet_wrap(~Region, scales="free") 
+
+```
+## 5.Which state has the maximum alcoholic (ABV) beer? Which state has the most bitter (IBU) beer?
+
+### 5a. Most Alcoholic Beer in US
+
+### Observation : Upon analysis the beer with maximum alcohol is made in the `Lee Hill Series Vol.5`  made in Colorado West
+```{r}
+
+#Which State has the maximum alcoholic ABV beer?
+Top_ABV = Distilled_Data2[order(-Distilled_Data2$ABV),] 
+kable(head(Top_ABV,1))
+```
+
+### 5b. Most Bitter Beer in US
+### Observation : Upon analysis the beer with maximum bitter content is  `Bitter Bitch Imperial IPA`  made in Oregano in West Region
+```{r}
+Most_Bitter = Distilled_Data2[order(-Distilled_Data2$IBU),] 
+kable(head(Most_Bitter,1))
+```
+
+## 6.   Comment on the summary statistics and distribution of the ABV variable.
+### Observation : Upon analysis the beer with maximum bitter content is  `Bitter Bitch Imperial IPA`  made in Oregano in West Region
+```{r}
+#Distribution of ABV
+summary(Distilled_Data2$ABV)
+boxplot(Distilled_Data2$ABV,main="ABV")
+
+
+```
+
+
+### 7. Is there an apparent relationship between the bitterness of the beer and its alcoholic content? Draw a scatter plot.  Make your best judgment of a relationship and EXPLAIN your answer.
+
+```{r}
+Distilled_Data2 %>% ggplot(aes(x=IBU, y=ABV)) + geom_point(color="red") + geom_smooth(method="lm") + 
+  ggtitle("Relationship Between ABV and IBU")
+
+```
+
+### 8. Use KNN to differentiate the beer from Ale or IPA Beer
+
+```{r}
+#Relationship Between IBU and ABV by Type
+IPA_ALE = sqldf('
+  select
+  "Name","Style" as Style,"ABV","IBU","State","Region","City",
+  case when "Style" like "%ALE%" then "ALE"
+       when "Style" like "%IPA%" then "IPA" end as Type
+ from
+  Distilled_Data2
+ where
+  "Style" like "%ALE%" OR "Style" like "%IPA%"
+ ')
+
+IPA_ALE %>% ggplot(aes(x=IBU, y=ABV,color=Type)) + geom_point() + geom_smooth(method="lm") + 
+  ggtitle("Relationship Between ABV and IBU") + 
+  facet_wrap(~Region,scales="free")
+```
+```{r}
+splitPerc = .70
+trainBeer = sample(1:dim(IPA_ALE)[1],round(splitPerc * dim(IPA_ALE)[1]))
+train = IPA_ALE[trainBeer,]
+test = IPA_ALE[-trainBeer,]
+
+accs = data.frame(accuracy = numeric(90), k = numeric(90))
+
+for(i in 1:90)
+{
+  classifications = knn(train[,c(3,4)],test[,c(3,4)],train$Type, prob = TRUE, k = i)
+  table(test$Type,classifications)
+  CM = confusionMatrix(table(test$Type,classifications))
+  accs$accuracy[i] = CM$overall[1]
+  accs$k[i] = i
+}
+plot(accs$k,accs$accuracy, type = "l", xlab = "k") 
+abline(v=accs$k[which.max(accs$accuracy)], col="red")
+accs$k[which.max(accs$accuracy)]
+
+```
+
+#Train / Test KNN
+```{r KNN - Perform KNN}
+splitPerc = .70
+trainIndices = sample(1:dim(IPA_ALE)[1],round(splitPerc * dim(IPA_ALE)[1]))
+train = IPA_ALE[trainIndices,]
+test = IPA_ALE[-trainIndices,]
+
+classification = knn(IPA_ALE[,c(3,4)],IPA_ALE[,c(3,4)],IPA_ALE$Type,prob = TRUE, k = 5)
+table(classification,IPA_ALE$Type)
+confusionMatrix(table(classification,IPA_ALE$Type))
+```

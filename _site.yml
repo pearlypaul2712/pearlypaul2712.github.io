@@ -1,0 +1,10 @@
+name: "Profile"
+navbar:
+  title: "Profile Website"
+  left:
+    - text: "Home"
+      href: index.html
+    - text: "Beer_Study"
+      href: Case_Study_Craft_Beer_Analysis.html
+    - text: "RShiny Apps"
+      href: RShiny.html

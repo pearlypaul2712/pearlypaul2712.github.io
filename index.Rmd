@@ -1,0 +1,17 @@
+---
+title: "About me"
+author: "Pearly Merin Paul"
+date: "7/13/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Pearly Merin PAul
+
+## About me
+
+# I am a dedicated person.I enjoy reading, and the knowledge and perspective that my reading gives me has strengthened my teaching skills and presentation abilities. I have been successful at raising a family, and I attribute this success to my ability to plan, schedule, and handle many different tasks at once. This flexibility will help me in the classroom, where there are many different personalities and learning styles.
